@@ -22,7 +22,7 @@ Automated ZFS snapshot management scripts for Ubuntu/Linux systems with TrueNAS-
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/zfs-backup.git
+git clone https://github.com/csantiviago/zfs-backup.git
 cd zfs-backup
 ```
 
@@ -175,5 +175,5 @@ These scripts require sudo/root privileges for ZFS operations. Review the code b
 
 ## Support
 
-- Report issues: [GitHub Issues](https://github.com/yourusername/zfs-backup/issues)
+- Report issues: [GitHub Issues](https://github.com/csantiviago/zfs-backup/issues)
 - Documentation: This README and [DEVELOPMENT.md](DEVELOPMENT.md)
