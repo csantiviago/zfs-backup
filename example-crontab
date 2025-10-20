@@ -1,0 +1,93 @@
+# Example crontab entries for ZFS Backup Scripts
+# Add these to root's crontab with: sudo crontab -e
+#
+# IMPORTANT: Replace "rpool/data" with your actual ZFS dataset path
+# Find your datasets with: zfs list
+
+# ============================================================================
+# Basic Configuration (Daily snapshots, keep 7 days)
+# ============================================================================
+
+# Create snapshot daily at 2:00 AM
+0 2 * * * ZFS_DATASET="rpool/data" /path/to/zfs-backup/zfs-backup
+
+# Clean up old snapshots daily at 3:00 AM (keep last 7)
+0 3 * * * ZFS_DATASET="rpool/data" /path/to/zfs-backup/zfs-backup-cleanup
+
+
+# ============================================================================
+# Extended Retention (Daily snapshots, keep 30 days)
+# ============================================================================
+
+# Create snapshot daily at 2:00 AM
+0 2 * * * ZFS_DATASET="rpool/data" /path/to/zfs-backup/zfs-backup
+
+# Clean up old snapshots daily at 3:00 AM (keep last 30)
+0 3 * * * ZFS_DATASET="rpool/data" ZFS_KEEP=30 /path/to/zfs-backup/zfs-backup-cleanup
+
+
+# ============================================================================
+# Frequent Snapshots (Every 6 hours, keep 28 = 7 days)
+# ============================================================================
+
+# Create snapshots every 6 hours (midnight, 6am, noon, 6pm)
+0 0,6,12,18 * * * ZFS_DATASET="rpool/data" /path/to/zfs-backup/zfs-backup
+
+# Clean up old snapshots daily at 3:00 AM (keep last 28 = 7 days × 4/day)
+0 3 * * * ZFS_DATASET="rpool/data" ZFS_KEEP=28 /path/to/zfs-backup/zfs-backup-cleanup
+
+
+# ============================================================================
+# Hourly Snapshots (Keep 168 = 7 days)
+# ============================================================================
+
+# Create snapshot every hour
+0 * * * * ZFS_DATASET="rpool/data" /path/to/zfs-backup/zfs-backup
+
+# Clean up old snapshots daily at 3:00 AM (keep last 168 = 7 days × 24 hours)
+0 3 * * * ZFS_DATASET="rpool/data" ZFS_KEEP=168 /path/to/zfs-backup/zfs-backup-cleanup
+
+
+# ============================================================================
+# Multiple Datasets
+# ============================================================================
+
+# Backup multiple datasets at the same time
+0 2 * * * ZFS_DATASET="rpool/data" /path/to/zfs-backup/zfs-backup
+5 2 * * * ZFS_DATASET="rpool/home" /path/to/zfs-backup/zfs-backup
+10 2 * * * ZFS_DATASET="rpool/projects" /path/to/zfs-backup/zfs-backup
+
+# Clean up all datasets (stagger by 5 minutes to avoid concurrent ZFS operations)
+0 3 * * * ZFS_DATASET="rpool/data" /path/to/zfs-backup/zfs-backup-cleanup
+5 3 * * * ZFS_DATASET="rpool/home" /path/to/zfs-backup/zfs-backup-cleanup
+10 3 * * * ZFS_DATASET="rpool/projects" /path/to/zfs-backup/zfs-backup-cleanup
+
+
+# ============================================================================
+# Production Configuration (Different retention for different datasets)
+# ============================================================================
+
+# Critical data: snapshot every hour, keep 30 days
+0 * * * * ZFS_DATASET="rpool/production/database" /path/to/zfs-backup/zfs-backup
+0 3 * * * ZFS_DATASET="rpool/production/database" ZFS_KEEP=720 /path/to/zfs-backup/zfs-backup-cleanup
+
+# User data: snapshot daily, keep 14 days
+0 2 * * * ZFS_DATASET="rpool/production/userdata" /path/to/zfs-backup/zfs-backup
+0 3 * * * ZFS_DATASET="rpool/production/userdata" ZFS_KEEP=14 /path/to/zfs-backup/zfs-backup-cleanup
+
+# Archives: snapshot weekly, keep 12 weeks
+0 2 * * 0 ZFS_DATASET="rpool/production/archives" /path/to/zfs-backup/zfs-backup
+0 3 * * 0 ZFS_DATASET="rpool/production/archives" ZFS_KEEP=12 /path/to/zfs-backup/zfs-backup-cleanup
+
+
+# ============================================================================
+# Tips:
+# ============================================================================
+#
+# 1. Always run cleanup AFTER snapshot creation
+# 2. Use absolute paths for script locations
+# 3. Test your cron entries manually first:
+#    sudo ZFS_DATASET="rpool/data" /path/to/zfs-backup/zfs-backup
+# 4. Monitor logs: sudo tail -f /var/log/zfs-backup.log
+# 5. Verify cron is running: sudo systemctl status cron
+# 6. Check cron logs: sudo grep CRON /var/log/syslog

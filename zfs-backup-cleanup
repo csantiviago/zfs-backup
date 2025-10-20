@@ -1,0 +1,87 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Configuration
+DATASET="${ZFS_DATASET:-}"
+KEEP="${ZFS_KEEP:-7}"
+LOGFILE="/var/log/zfs-backup.log"
+
+# Validate required configuration
+if [ -z "${DATASET}" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: ZFS_DATASET environment variable must be set" >&2
+    echo "Usage: sudo ZFS_DATASET=\"your/dataset\" $0" >&2
+    echo "Find your datasets with: zfs list" >&2
+    exit 1
+fi
+
+# Logging function - logs to both stderr and log file
+log() {
+    local MESSAGE="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    echo "${MESSAGE}" >&2
+    echo "${MESSAGE}" | sudo tee -a "${LOGFILE}" > /dev/null
+}
+
+# Validate KEEP is a positive integer
+if ! [[ "${KEEP}" =~ ^[0-9]+$ ]] || [ "${KEEP}" -lt 1 ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: KEEP must be a positive integer, got: ${KEEP}" >&2
+    exit 1
+fi
+
+# Check if we have sudo privileges for zfs FIRST (before any zfs commands)
+if ! sudo -v &>/dev/null; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: sudo privileges required. Please run with sudo or ensure sudo access is configured" >&2
+    exit 1
+fi
+
+# Check if dataset exists (now we know we have sudo)
+if ! sudo zfs list -H -o name "${DATASET}" &>/dev/null; then
+    log "ERROR: Dataset '${DATASET}' does not exist"
+    exit 1
+fi
+
+# Get snapshot list, sorted by creation time, only for exact dataset match
+SNAPSHOT_LIST=$(sudo zfs list -H -t snapshot -o name -s creation -d 1 "${DATASET}" 2>/dev/null || true)
+
+if [ -z "${SNAPSHOT_LIST}" ]; then
+    log "INFO: No snapshots found for dataset '${DATASET}'"
+    exit 0
+fi
+
+# Count snapshots
+SNAPSHOT_COUNT=$(echo "${SNAPSHOT_LIST}" | wc -l)
+log "INFO: Found ${SNAPSHOT_COUNT} snapshot(s) for dataset '${DATASET}', keeping ${KEEP}"
+
+# Check if we need to delete any
+if [ "${SNAPSHOT_COUNT}" -le "${KEEP}" ]; then
+    log "INFO: No cleanup needed (${SNAPSHOT_COUNT} <= ${KEEP})"
+    exit 0
+fi
+
+# Calculate how many to delete
+DELETE_COUNT=$((SNAPSHOT_COUNT - KEEP))
+SNAPSHOTS_TO_DELETE=$(echo "${SNAPSHOT_LIST}" | head -n "${DELETE_COUNT}")
+
+log "INFO: Deleting ${DELETE_COUNT} old snapshot(s)"
+
+# Delete snapshots
+FAILED=0
+while IFS= read -r SNAPSHOT; do
+    if [ -n "${SNAPSHOT}" ]; then
+        log "Destroying: ${SNAPSHOT}"
+        if sudo zfs destroy "${SNAPSHOT}" 2>&1 | sudo tee -a "${LOGFILE}" > /dev/null; then
+            log "SUCCESS: Destroyed ${SNAPSHOT}"
+        else
+            log "ERROR: Failed to destroy ${SNAPSHOT}"
+            FAILED=$((FAILED + 1))
+        fi
+    fi
+done <<< "${SNAPSHOTS_TO_DELETE}"
+
+if [ "${FAILED}" -gt 0 ]; then
+    log "ERROR: Failed to delete ${FAILED} snapshot(s)"
+    exit 1
+fi
+
+log "SUCCESS: Cleanup completed successfully"
+exit 0
